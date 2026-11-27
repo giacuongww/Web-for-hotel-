@@ -1,0 +1,52 @@
+:root{font-family:"Be Vietnam Pro",sans-serif;color:#242424;background:white;--cream:#f5f3f0;--accent:#e84324;--ink:#242424;--muted:#625d57;--line:#ded9d3}
+*{box-sizing:border-box}
+body{margin:0}
+a{color:inherit;text-decoration:none}
+a:hover{text-decoration:underline;text-underline-offset:.24em}
+:focus-visible{outline:3px solid #a82c14;outline-offset:4px}
+img{width:100%;display:block;object-fit:cover}
+.wrap{width:min(1200px,calc(100% - 96px));margin-inline:auto}
+.header-inner,.footer-inner{display:flex;align-items:center;justify-content:space-between;gap:24px;padding-block:20px}
+.brand{font-size:24px;font-weight:700;letter-spacing:-.055em;white-space:nowrap}
+.brand small{font-size:10px;letter-spacing:.17em;color:#a82c14;margin-left:3px}
+nav{display:flex;gap:clamp(12px,3vw,42px);font-size:14px;font-weight:500}
+.button{font:inherit;font-size:14px;font-weight:700;display:inline-flex;justify-content:center;align-items:center;gap:10px;padding:14px 20px;background:var(--accent);color:var(--ink);border:0;cursor:pointer;min-height:46px}
+.button:hover{background:#f16a4d;text-decoration:none}
+.hero,.about{background:var(--cream)}
+.hero-inner,.about-inner{display:grid;grid-template-columns:1fr 1.25fr;align-items:center;gap:clamp(32px,6vw,88px)}
+.hero-inner{padding-block:48px 76px}
+.hero img{height:clamp(330px,38vw,535px);border-radius:48% 48% 0 0 / 26% 26% 0 0}
+.eyebrow{display:inline-flex;align-items:center;gap:12px;color:#a82c14;font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase}
+.eyebrow::before{content:"";width:19px;height:1px;background:var(--accent)}
+h1,h2,h3,p{margin:0}
+h1{font-size:clamp(38px,5.2vw,76px);letter-spacing:-.065em;line-height:1.09;margin-top:16px}
+h2{font-size:clamp(28px,4vw,48px);letter-spacing:-.045em;line-height:1.16;margin-top:10px}
+p{color:var(--muted);line-height:1.65}
+.hero p,.about p{margin-block:20px;max-width:43ch}
+.text-link,.booking p a{font-weight:700;color:#a82c14;text-decoration:underline;text-underline-offset:.25em}
+.booking{position:relative;margin-top:-34px;background:white;border:1px solid var(--line);box-shadow:0 12px 35px #2424240d;padding:20px 24px}
+.booking form{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) auto;gap:16px;align-items:end}
+.booking label{display:grid;gap:7px;font-size:13px;font-weight:600;min-width:0}
+.booking input,.booking select{font:inherit;color:inherit;background:white;border:1px solid var(--line);min-height:46px;padding:8px;width:100%;min-width:0}
+.booking p{margin-top:14px;font-size:14px}
+.section{padding-block:clamp(48px,7vw,96px)}
+.cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px;margin-top:28px}
+.cards article{border:1px solid var(--line)}
+.cards img,.about img{height:auto;aspect-ratio:3/2}
+.card-copy{padding:20px}
+.card-copy h3{font-size:18px;margin-bottom:8px}
+.card-copy p{font-size:14px}
+.about-inner{grid-template-columns:1.2fr 1fr}
+footer{border-top:1px solid var(--line);background:var(--cream)}
+@media(max-width:760px){
+.wrap{width:calc(100% - 36px)}
+.header-inner{flex-wrap:wrap;gap:12px}
+.header-inner nav{order:1;width:100%;border-top:1px solid var(--line);padding-top:12px}
+.hero-inner,.about-inner,.cards{grid-template-columns:1fr}
+.hero-inner{padding-block:32px 55px;gap:28px}
+.hero img{height:clamp(210px,65vw,420px)}
+.booking{padding:15px}
+.booking form{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.booking .button{padding-inline:8px}
+.footer-inner{flex-wrap:wrap}
+}
