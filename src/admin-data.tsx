@@ -10,6 +10,7 @@ export function displayError(error: unknown) {
   const message=(error as {message?:string})?.message??'';
   return ({
     CANCELLED:'Đã bỏ qua thao tác.',
+    MEDIA_REFERENCED:'Ảnh đang được dùng, hãy gỡ liên kết trước khi xóa.',
     INVALID_IMAGE:'Ảnh không đúng định dạng hoặc vượt giới hạn 5 MB.',
     INVALID_ROOMS:'CSV hoặc dữ liệu phòng không hợp lệ.',
     ROOM_HAS_BOOKINGS:'Phòng đang có đơn hiệu lực trong khoảng thời gian này.',

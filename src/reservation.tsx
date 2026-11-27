@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useLanguage } from './i18n';
-import { meals, money, photo, type Room } from './rooms';
+import { meals, money, roomPhoto, type Room } from './rooms';
 import { backend, quoteStay, submitBooking, type Quote, type Receipt } from './backend';
 import { usePublicData } from './public-data';
 import { nextDay, nights, readStay, stayIssue, stayQuery, today, type Stay } from './stay';
@@ -219,7 +219,7 @@ export function Reservation({ initialRoom }: { initialRoom: Room }) {
         </div>}
       </div>
       <aside className="summary">
-        <img src={photo(room.image)} alt={name} width="720" height="480" />
+        <img src={roomPhoto(room)} alt={room.cover ? t(room.cover.altVi,room.cover.altZh) || name : name} width="720" height="480" />
         <div className="card-copy">
           <h2>{name}</h2>
           <p>{t('Tối đa', '每间最多')} {room.capacity} {t('khách mỗi phòng', '位客人')}</p>

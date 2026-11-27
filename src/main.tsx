@@ -209,13 +209,14 @@ function Contact() {
 }
 
 function Home() {
-  const {rooms,pages} = usePublicData();
+  const {rooms,pages,covers} = usePublicData();
   const hero = pages.find(p=>p.slug==='home');
+  const cover = covers['page:home'];
   const { t } = useLanguage();
   return <>
     <section className="hero">
-      <img className="hero-image" src={photo('hero')} srcSet={photo('hero-small') + ' 760w, ' + photo('hero') + ' 1600w'}
-        sizes="100vw" alt={t('Mặt tiền khách sạn Hoa Phủ', '华府酒店外观')} fetchPriority="high" width="1440" height="960" />
+      <img className="hero-image" src={cover?.url ?? photo('hero')} srcSet={cover ? undefined : photo('hero-small') + ' 760w, ' + photo('hero') + ' 1600w'}
+        sizes="100vw" alt={cover ? t(cover.altVi,cover.altZh) : t('Mặt tiền khách sạn Hoa Phủ', '华府酒店外观')} fetchPriority="high" width="1440" height="960" />
       <div className="wrap hero-inner"><div className="hero-copy">
         <span className="eyebrow">{t('Khách sạn Hoa Phủ', '华府酒店')}</span>
         <h1>{hero ? t(hero.title_vi,hero.title_zh) : <><span>{t('Tận hưởng từng', '尽享旅途中的')}</span>{' '}<span>{t('khoảnh khắc.', '每一刻。')}</span></>}</h1>

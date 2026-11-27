@@ -7,6 +7,7 @@ const textFields=[['title_vi','Tiêu đề Việt'],['title_zh','Tiêu đề Tru
 export function ContentAdmin(){
   const pages=useRows('cms_pages');
   const sections=useRows('cms_sections');
+  const media=useRows('media');
   const [slug,setSlug]=useState('home');
   const [editing,setEditing]=useState<Row>();
   const page=pages.rows.find(row=>row.slug===slug)??{};
@@ -14,12 +15,14 @@ export function ContentAdmin(){
     <option value="home">Trang chủ</option><option value="gioi-thieu">Giới thiệu</option><option value="tien-ich">Dịch vụ</option><option value="phong-nghi">Danh sách phòng</option><option value="lien-he">Liên hệ</option>
   </select></label>
     {pages.state==='ready'&&<Form key={slug} action={async data=>{
-      const row={slug,...Object.fromEntries(textFields.map(([key])=>[key,field(data,key)])),publication_status:field(data,'status'),updated_at:new Date().toISOString()};
+      const row={slug,cover_media_id:Number(field(data,'cover'))||null,...Object.fromEntries(textFields.map(([key])=>[key,field(data,key)])),publication_status:field(data,'status'),updated_at:new Date().toISOString()};
       const {error}=await database().from('cms_pages').upsert(row);if(error)throw error;pages.reload();
     }}>
       {textFields.map(([key,label])=><label key={key}>{label}
         {key.startsWith('content')?<textarea name={key} maxLength={12000} defaultValue={string(page,key)}/>:<input name={key} maxLength={250} required={key.startsWith('title')} defaultValue={string(page,key)}/>}
       </label>)}
+      <label>Ảnh đại diện / Hero<select name="cover" defaultValue={string(page,'cover_media_id')}><option value="">Ảnh mặc định</option>{media.rows.map(row=>
+        <option key={string(row,'id')} value={string(row,'id')}>{string(row,'alt_vi')}</option>)}</select></label>
       <label>Trạng thái<select name="status" defaultValue={string(page,'publication_status')||'draft'}><option value="draft">Bản nháp</option><option value="published">Xuất bản</option><option value="archived">Lưu trữ</option></select></label>
     </Form>}
     {Object.keys(page).length>0&&<><h2>Section bổ sung</h2>
@@ -70,6 +73,8 @@ async function imageExtension(file:File) {
 export function MediaAdmin(){
   const media=useRows('media');
   const rooms=useRows('room_types');
+  const galleries=useRows('room_images');
+  const [orphan,setOrphan]=useState('');
   const [query,setQuery]=useState('');
   const bucket=database().storage.from('hotel-media');
   return <><h1>Thư viện ảnh</h1>
@@ -84,16 +89,39 @@ export function MediaAdmin(){
       <label>Nhóm ảnh<input name="category"/></label><label>Alt Việt<input name="alt_vi" required/></label><label>Alt Trung<input name="alt_zh" required/></label>
     </Form>
     <label>Tìm ảnh<input value={query} onChange={event=>setQuery(event.target.value)}/></label>
-    <Grid headers={['Xem','Nhóm','Alt Việt','Alt Trung']} rows={media.rows.filter(row=>['category','alt_vi','alt_zh'].some(key=>string(row,key).toLowerCase().includes(query.toLowerCase()))).map(row=>[
+    {orphan&&<Form submit="Thử xóa tệp còn lại" action={async()=>{
+      const {error}=await bucket.remove([orphan]);if(error)throw error;setOrphan('');
+    }}><p>Không xóa được tệp Storage {orphan}.</p></Form>}
+    <Grid headers={['Xem','Nhóm','Alt Việt','Alt Trung','']} rows={media.rows.filter(row=>['category','alt_vi','alt_zh'].some(key=>string(row,key).toLowerCase().includes(query.toLowerCase()))).map(row=>[
       <a href={bucket.getPublicUrl(string(row,'storage_path')).data.publicUrl} target="_blank" rel="noreferrer">{string(row,'storage_path')}</a>,
       string(row,'category'),string(row,'alt_vi'),string(row,'alt_zh'),
+      <Form submit="Xóa ảnh" action={async()=>{
+        if(!window.confirm('Xóa ảnh khi không còn được sử dụng?'))throw new Error('CANCELLED');
+        const path=await rpc('delete_media_metadata',{p_id:row.id});
+        const {error}=await bucket.remove([path]);media.reload();
+        if(error){setOrphan(path);throw error;}
+      }}/>,
+
     ])}/>
     <h2>Gắn ảnh vào gallery phòng</h2><Form action={async data=>{
       const {error}=await database().from('room_images').upsert({room_type_id:field(data,'room'),media_id:Number(field(data,'image')),sort_order:Number(field(data,'order'))});
-      if(error)throw error;
+      if(error)throw error;galleries.reload();
     }}><label>Loại phòng<select required name="room">{rooms.rows.map(room=><option key={string(room,'slug')} value={string(room,'slug')}>{string(room,'name_vi')}</option>)}</select></label>
       <label>Ảnh<select required name="image">{media.rows.map(row=><option key={string(row,'id')} value={string(row,'id')}>{string(row,'alt_vi')}</option>)}</select></label>
       <label>Thứ tự<input name="order" type="number" defaultValue="0"/></label>
+    </Form>
+    <Grid headers={['Gallery','Ảnh','Thứ tự','']} rows={galleries.rows.map(row=>[
+      string(row,'room_type_id'),string(media.rows.find(m=>m.id===row.media_id)??{},'alt_vi'),string(row,'sort_order'),
+      <Form submit="Gỡ liên kết" action={async()=>{
+        if(!window.confirm('Gỡ ảnh khỏi gallery này?'))throw new Error('CANCELLED');
+        const {error}=await database().from('room_images').delete().eq('room_type_id',row.room_type_id).eq('media_id',row.media_id);
+        if(error)throw error;galleries.reload();
+      }}/>,
+    ])}/>
+    <h2>Ảnh đại diện phòng</h2>
+    <Form action={async data=>{await rpc('set_room_cover',{p_type:field(data,'room'),p_media:Number(field(data,'image'))||null});rooms.reload();}}>
+      <label>Loại phòng<select required name="room">{rooms.rows.map(room=><option key={string(room,'slug')} value={string(room,'slug')}>{string(room,'name_vi')}</option>)}</select></label>
+      <label>Ảnh<select name="image"><option value="">Ảnh mặc định</option>{media.rows.map(row=><option key={string(row,'id')} value={string(row,'id')}>{string(row,'alt_vi')}</option>)}</select></label>
     </Form>
   </>;
 }

@@ -8,7 +8,13 @@ async function initialize(db) {
       create table auth.users(id uuid primary key);
       create function auth.uid() returns uuid language sql stable as
       $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;
-      grant usage on schema auth to authenticated,anon;`);
+      grant usage on schema auth to authenticated,anon;
+      create schema storage;
+      create table storage.buckets(id text primary key,name text,public boolean,file_size_limit integer,allowed_mime_types text[]);
+      create table storage.objects(bucket_id text references storage.buckets,name text);
+      alter table storage.objects enable row level security;
+      grant usage on schema storage to authenticated,anon;
+      grant select,insert,delete on storage.objects to authenticated;`);
     const root = new URL('../supabase/migrations/', import.meta.url);
     for (const file of (await readdir(root)).sort()) await db.exec(await readFile(new URL(file,root),'utf8'));
 }
@@ -86,6 +92,17 @@ test('Authorization, CMS publication, verified stay review and payment reporting
     assert.equal((await rows('select * from public.cms_pages')).length,0);
     await role(editor);
     await rows("update public.cms_pages set publication_status='published' where slug='home'");
+    const path='d146d287-fe0b-4f46-a070-ea5dc9951276.webp';
+    await rows("insert into storage.objects values('hotel-media',$1)",[path]);
+    await assert.rejects(rows("insert into storage.objects values('hotel-media','bad.svg')"),/row-level/);
+    const [media]=await rows("insert into public.media(storage_path,alt_vi,alt_zh) values($1,'Ảnh thử','测试图') returning id",[path]);
+    await rows("select public.set_room_cover('standard-double',$1)",[media.id]);
+    await assert.rejects(rows("select public.delete_media_metadata($1)",[media.id]),/MEDIA_REFERENCED/);
+    assert.equal((await rows("delete from storage.objects where name=$1 returning name",[path])).length,0);
+    await rows("select public.set_room_cover('standard-double',null)");
+    await rows("select public.delete_media_metadata($1)",[media.id]);
+    assert.equal((await rows("delete from storage.objects where name=$1 returning name",[path])).length,1);
+
     await role();
     assert.equal((await rows('select * from public.cms_pages')).length,1);
     await assert.rejects(rows("select public.submit_review($1,5,'Test','vi')",[token]),/REVIEW_NOT_ELIGIBLE/);
@@ -99,6 +116,10 @@ test('Authorization, CMS publication, verified stay review and payment reporting
     const [booking]=await rows("select id from public.bookings");
     await assert.rejects(rows("select lookup_token from public.bookings"),/permission denied/);
     await assert.rejects(rows("select public.record_payment($1,10,'receipt','cash','','')",[booking.id]),/FORBIDDEN/);
+    await assert.rejects(rows("select public.amend_booking($1,'standard-double',public.hotel_today(),public.hotel_today()+2,2,1,'room_only',1)",[booking.id]),/PRICE_CHANGED/);
+    await rows("select public.amend_booking($1,'standard-double',public.hotel_today(),public.hotel_today()+2,2,1,'room_only',1260000)",[booking.id]);
+    assert.equal((await rows("select count(*)::int as n from public.booking_revisions"))[0].n,1);
+    await rows("select public.amend_booking($1,'standard-double',public.hotel_today(),public.hotel_today()+1,2,1,'room_only',630000)",[booking.id]);
     await rows("select public.swap_booking_room($1,1,2)",[booking.id]);
     await rows("select public.change_booking_status($1,'confirmed')",[booking.id]);
     await rows("select public.change_booking_status($1,'checked_in')",[booking.id]);

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, BedDouble, UsersRound, X, ZoomIn } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useLanguage } from './i18n';
-import { amenities, meals, money, photo, rooms as fallbackRooms, type Room } from './rooms';
+import { amenities, meals, money, photo, roomPhoto, rooms as fallbackRooms, type Room } from './rooms';
 import { StaySearch } from './reservation';
 import { nights, readStay, stayQuery, type Stay } from './stay';
 import { backend, quoteStay, type Quote } from './backend';
@@ -29,7 +29,7 @@ export function RoomCards({ items, stay, quotes }: { items: Room[]; stay?: Stay;
     const nightly = quotes?.find(quote=>quote.room_type_id===room.id)?.nightly;
     const rate = nightly?.length ? Math.min(...nightly) : room.rates[stay?.meal ?? 0];
     return <article key={room.id}>
-      <img src={photo(room.image)} alt={name} loading="lazy" width="720" height="480" />
+      <img src={roomPhoto(room)} alt={room.cover ? t(room.cover.altVi,room.cover.altZh) || name : name} loading="lazy" width="720" height="480" />
       <div className="card-copy">
         <h3>{name}</h3><Facts room={room} /><Amenities />
         {t(room.descriptionVi ?? '',room.descriptionZh ?? '') && <p>{t(room.descriptionVi ?? '',room.descriptionZh ?? '')}</p>}
@@ -134,7 +134,7 @@ function Gallery({ room }: { room: Room }) {
     url:backend?.storage.from('hotel-media').getPublicUrl(item.storage_path).data.publicUrl ?? '',
     alt:t(item.alt_vi,item.alt_zh)||name,
   }));
-  const photos = [{url:photo(room.image),alt:name}, ...managed, ...gallery];
+  const photos = [{url:roomPhoto(room),alt:room.cover?t(room.cover.altVi,room.cover.altZh)||name:name}, ...managed, ...gallery];
   const move = (delta: number) => setIndex((current) => (current + delta + photos.length) % photos.length);
 
   useEffect(() => {
