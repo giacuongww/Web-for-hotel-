@@ -7,6 +7,8 @@ import '@fontsource/be-vietnam-pro/500.css';
 import '@fontsource/be-vietnam-pro/600.css';
 import '@fontsource/be-vietnam-pro/700.css';
 import '@fontsource/noto-sans-sc/400.css';
+import '@fontsource/noto-serif/500.css';
+import '@fontsource/noto-serif-sc/500.css';
 import './style.css';
 import { LanguageProvider, useLanguage } from './i18n';
 import { amenities, hotel, maps, photo, rooms } from './rooms';
@@ -45,8 +47,17 @@ function Header() {
   const { t, language, change } = useLanguage();
   const [menu, setMenu] = useState(false);
   const location = useLocation();
+  const onHome = location.pathname === '/';
+  const [scrolled, setScrolled] = useState(() => window.scrollY > 24);
   useEffect(() => setMenu(false), [location]);
-  return <header className="site-header" onKeyDown={(event) => {
+  useEffect(() => {
+    const update = () => setScrolled(window.scrollY > 24);
+    update();
+    window.addEventListener('scroll', update, { passive: true });
+    return () => window.removeEventListener('scroll', update);
+  }, []);
+  const overlay = onHome && !scrolled && !menu;
+  return <header className={'site-header' + (onHome ? ' site-header-home' : '') + (overlay ? ' site-header-overlay' : '')} onKeyDown={(event) => {
     if (menu && event.key === 'Escape') {
       setMenu(false);
       document.getElementById('menu-toggle')?.focus();
@@ -97,7 +108,7 @@ function Footer() {
 
 function About({ standalone = false }: { standalone?: boolean }) {
   const { t } = useLanguage();
-  return <section className="about" id="gioi-thieu"><div className="wrap section about-inner">
+  return <section className="about editorial-reveal" id="gioi-thieu"><div className="wrap section about-inner">
     <img src={photo('lobby')} alt={t('Sảnh lễ tân khách sạn Hoa Phủ', '华府酒店大堂')} loading="lazy" width="960" height="640" />
     <div>
       {standalone ? <h1>{t('Giới thiệu Hoa Phủ Hotel', '华府酒店介绍')}</h1> : <>
@@ -118,12 +129,14 @@ function About({ standalone = false }: { standalone?: boolean }) {
 
 function Services({ standalone = false }: { standalone?: boolean }) {
   const { t } = useLanguage();
-  return <section className="wrap section" id="tien-ich">
+  return <section className={standalone ? "wrap section" : "wrap section home-services"} id="tien-ich">
     {standalone ? <h1>{t('Dịch vụ & tiện ích', '酒店服务与设施')}</h1> : <h2>{t('Dịch vụ & tiện ích', '酒店服务与设施')}</h2>}
-    <div className="cards">{services.map(([image, vi, zh, description, translated]) => <article key={image}>
+    <div className={standalone ? "cards" : "editorial-stories"}>{services.map(([image, vi, zh, description, translated]) => <article key={image}>
       <img src={photo(image)} alt={t(vi, zh)} loading="lazy" width="720" height="480" />
       <div className="card-copy"><h3>{t(vi, zh)}</h3><p>{t(description, translated)}</p>
-        {standalone && <Link className="text-link" to="/lien-he">{t('Liên hệ khách sạn', '联系酒店')} ↗</Link>}
+        <Link className="text-link" to={standalone ? '/lien-he' : '/tien-ich'}>
+          {standalone ? t('Liên hệ khách sạn', '联系酒店') : t('Xem dịch vụ', '查看酒店服务')} ↗
+        </Link>
       </div>
     </article>)}</div>
     {standalone && <div className="related"><h2>{t('Tiện nghi chung', '常用设施')}</h2>
@@ -187,23 +200,25 @@ function Contact() {
 function Home() {
   const { t } = useLanguage();
   return <>
-    <section className="hero"><div className="wrap hero-inner">
-      <div className="hero-copy">
+    <section className="hero">
+      <img className="hero-image" src={photo('hero')} srcSet={photo('hero-small') + ' 760w, ' + photo('hero') + ' 1600w'}
+        sizes="100vw" alt={t('Mặt tiền khách sạn Hoa Phủ', '华府酒店外观')} fetchPriority="high" width="1440" height="960" />
+      <div className="wrap hero-inner"><div className="hero-copy">
         <span className="eyebrow">{t('Khách sạn Hoa Phủ', '华府酒店')}</span>
-        <h1>{t('Tận hưởng từng khoảnh khắc.', '尽享旅途中的每一刻。')}</h1>
+        <h1><span>{t('Tận hưởng từng', '尽享旅途中的')}</span>{' '}<span>{t('khoảnh khắc.', '每一刻。')}</span></h1>
         <p>{t('Chào mừng bạn đến Hoa Phủ Hotel. Khám phá không gian nghỉ ngơi và tiện ích tại khách sạn.', '欢迎入住华府酒店，探索舒适的客房与酒店设施。')}</p>
-        <div className="actions"><Link className="text-link" to="/#phong-nghi">{t('Khám phá phòng nghỉ', '探索客房')} ↓</Link><BookingLink /></div>
-      </div>
-      <img src={photo('hero')} srcSet={photo('hero-small') + ' 760w, ' + photo('hero') + ' 1600w'}
-        sizes="(max-width: 760px) calc(100vw - 36px), 660px" alt={t('Mặt tiền khách sạn Hoa Phủ', '华府酒店外观')} fetchPriority="high" width="1440" height="960" />
-    </div></section>
+        <div className="actions"><BookingLink /><Link className="hero-secondary" to="/#phong-nghi">{t('Khám phá phòng nghỉ', '探索客房')} ↓</Link></div>
+      </div></div>
+    </section>
     <StaySearch />
-    <section className="wrap section" id="phong-nghi">
-      <span className="eyebrow">{t('Lưu trú', '住宿')}</span><h2>{t('Phòng nghỉ nổi bật', '精选客房')}</h2><RoomCards items={featured} />
+    <section className="wrap section home-rooms editorial-reveal" id="phong-nghi">
+      <span className="eyebrow">{t('Lưu trú', '住宿')}</span>
+        <h2>{t('Phòng nghỉ nổi bật', '精选客房')}</h2>
+        <RoomCards items={featured} />
       <Link className="text-link all-rooms" to="/phong-nghi">{t('Xem tất cả 7 loại phòng', '查看全部 7 种房型')} ↗</Link>
     </section>
     <About /><Services />
-    <section className="wrap section home-contact">
+    <section className="wrap section home-contact editorial-reveal">
       <h2>{t('Liên hệ khách sạn', '联系酒店')}</h2><Address /><QuickContact />
     </section>
   </>;
