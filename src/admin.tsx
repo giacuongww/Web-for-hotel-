@@ -4,8 +4,7 @@ import type {Session} from '@supabase/supabase-js';
 import {backend} from './backend';
 import {database,field,Form,Grid,string,useRows} from './admin-data';
 import {RatesAdmin,TypesAdmin} from './admin-rooms';
-import {CustomersAdmin} from './admin-operations';
-import {Intake,WebsiteAnalytics} from './admin-intake';
+import {Intake,WebsiteAnalytics,WebsiteCustomers} from './admin-intake';
 import {ContentAdmin,MediaAdmin,ReviewsAdmin,SettingsAdmin} from './admin-content';
 import './admin.css';
 
@@ -123,7 +122,7 @@ export default function Admin(){
     (permission==='room-read'&&['rooms','bookings'].some(value=>access.value!.permissions.includes(value)));
   const pages:Record<string,ReactNode>={
     dashboard:<Dashboard operations={can('bookings')}/>, bookings:<Intake/>,contacts:<Intake contact/>,
-    'room-types':<TypesAdmin/>,rates:<RatesAdmin/>,customers:<CustomersAdmin/>,
+    'room-types':<TypesAdmin/>,rates:<RatesAdmin/>,customers:<WebsiteCustomers/>,
     analytics:<WebsiteAnalytics/>,reviews:<ReviewsAdmin/>,content:<ContentAdmin/>,media:<MediaAdmin/>,staff:<Staff/>,settings:<SettingsAdmin staff={false}/>,integrations:<><h1>Tích hợp ezCloud</h1><p>Chế độ hiện hành: tiếp nhận yêu cầu. ezBe và ezCloud API chưa được cấu hình.</p></>,audit:<Audit/>,
   };
   return <div className="admin-frame"><aside className={'admin-sidebar'+(menu?' open':'')}><Link className="brand" to="/">Hoa Phủ <small>HOTEL</small></Link>

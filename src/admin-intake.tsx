@@ -61,3 +61,24 @@ export function WebsiteAnalytics(){
     </dl>:<p role="status">Chưa tải được dữ liệu website.</p>}
   </>;
 }
+
+export function WebsiteCustomers(){
+  const requests=useRows('booking_requests','code,full_name,email,phone,arrival,departure,status,total,created_at');
+  const contacts=useRows('contact_requests','id,full_name,email,phone,status,created_at');
+  const [query,setQuery]=useState('');
+  const [selected,setSelected]=useState('');
+  const all=[...requests.rows,...contacts.rows].sort((a,b)=>string(b,'created_at').localeCompare(string(a,'created_at')));
+  const profiles=new Map<string,Row>();
+  for(const row of all){const email=string(row,'email').toLowerCase();if(email&&!profiles.has(email))profiles.set(email,row);}
+  const filtered=[...profiles.entries()].filter(([,row])=>[row.full_name,row.email,row.phone].some(value=>String(value??'').toLowerCase().includes(query.toLowerCase())));
+  const history=selected?all.filter(row=>string(row,'email').toLowerCase()===selected):[];
+  return <><h1>Khách hàng website</h1><p>Hồ sơ được nhóm theo email từ các yêu cầu trên website.</p>
+    <label>Tìm khách<input type="search" value={query} onChange={event=>setQuery(event.target.value)}/></label>
+    <Grid headers={['Tên','Email','Điện thoại','']} rows={filtered.map(([email,row])=>[
+      string(row,'full_name'),email,string(row,'phone'),<button className="secondary-button" onClick={()=>setSelected(email)}>Xem lịch sử</button>,
+    ])}/>
+    {selected&&<section><h2>Lịch sử yêu cầu</h2><Grid headers={['Loại yêu cầu','Ngày gửi','Trạng thái','Giá trị dự kiến']} rows={history.map(row=>[
+      row.code?'Đặt phòng':'Liên hệ',string(row,'created_at').slice(0,10),labels[string(row,'status')],row.code?money(Number(row.total)):'—',
+    ])}/></section>}
+  </>;
+}
