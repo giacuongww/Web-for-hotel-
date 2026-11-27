@@ -33,7 +33,10 @@ export function BookingsAdmin({finance}:{finance:boolean}){
     (string(row,'booking_code')+' '+string(clientFor(row),'full_name')).toLowerCase().includes(search.trim().toLowerCase()))
     .sort((a,b)=>string(b,'created_at').localeCompare(string(a,'created_at')));
   const transactions=payments.rows.filter(row=>row.booking_id===active?.id);
-  const net=transactions.reduce((sum,row)=>sum+(row.direction==='refund'?-1:1)*Number(row.amount),0);
+  const refunded=transactions.filter(row=>row.direction==='refund').reduce((sum,row)=>sum+Number(row.amount),0);
+  const net=transactions.filter(row=>row.direction==='receipt').reduce((sum,row)=>sum+Number(row.amount),0)-refunded;
+  const paymentState=refunded>0?(net===0?'Đã hoàn tiền':'Đã hoàn một phần'):net===0?'Chưa thanh toán':
+    net>=Number(active?.total_amount)?'Đã thanh toán':'Đã thanh toán một phần';
   return <><h1>Đơn đặt phòng</h1>
     {bookings.state!=='ready'&&<p role="status">{bookings.state==='error'?'Không tải được danh sách.':'Đang tải…'}</p>}
     <div className="admin-filters"><label>Tìm mã đơn hoặc tên khách<input value={search} onChange={e=>setSearch(e.target.value)}/></label>
@@ -59,6 +62,9 @@ export function BookingsAdmin({finance}:{finance:boolean}){
         <label>Trạng thái<select name="status" defaultValue={string(active,'status')}>{[string(active,'status'),...(transitions[string(active,'status')]??[])].map(value=><option key={value} value={value}>{bookingStatus[value]}</option>)}</select></label>
         <label>Ghi chú nội bộ<textarea name="note" defaultValue={string(active,'internal_note')}/></label>
       </Form>
+      {['pending','confirmed'].includes(string(active,'status'))&&items.rows.filter(item=>item.booking_id===active.id).map(item=>
+        <Amendment key={string(active,'id')+string(active,'check_in')+string(item,'quantity')+string(item,'room_type_id')} booking={active} item={item} types={types.rows}
+          reload={()=>{bookings.reload();items.reload();allocations.reload();rates.reload();}}/>)}
       {['pending','confirmed'].includes(string(active,'status'))&&<><h3>Đổi phòng cùng loại</h3>
         <Form key={'swap'+string(active,'id')} submit="Đổi phòng" action={async data=>{
           await rpc('swap_booking_room',{p_booking:active.id,p_old:Number(field(data,'old')),p_new:Number(field(data,'new'))});allocations.reload();
@@ -67,7 +73,7 @@ export function BookingsAdmin({finance}:{finance:boolean}){
           <label>Phòng thay thế<select name="new" required><option value="">Chọn phòng</option>{rooms.rows.filter(room=>room.operational_status==='active').map(row=>
             <option key={string(row,'id')} value={string(row,'id')}>{string(row,'room_number')} · {string(row,'room_type_id')}</option>)}</select></label>
         </Form></>}
-      {finance&&<><h3>Thanh toán thủ công</h3><p>Thực thu ròng {money(net)} · Còn lại {money(Number(active.total_amount)-net)}</p>
+      {finance&&<><h3>Thanh toán thủ công</h3><p>{paymentState} · Thực thu ròng {money(net)} · Còn lại {money(Number(active.total_amount)-net)}</p>
         <Grid headers={['Ngày','Loại','Phương thức','Số tiền']} rows={transactions.map(row=>[string(row,'paid_at'),row.direction==='refund'?'Hoàn tiền':'Thu tiền',string(row,'method'),money(Number(row.amount))])}/>
         <Form key={string(active,'id')} submit="Ghi giao dịch" action={async data=>{
           await rpc('record_payment',{p_id:active.id,p_amount:Number(field(data,'amount')),p_direction:field(data,'direction'),
@@ -100,6 +106,29 @@ export function BookingsAdmin({finance}:{finance:boolean}){
         <label>Điện thoại<input name="phone" type="tel" required/></label><label>Ghi chú<input name="note"/></label>
       </Form>}
   </>;
+}
+
+function Amendment({booking,item,types,reload}:{booking:Row;item:Row;types:Row[];reload:()=>void}){
+  const [draft,setDraft]=useState<{values:Row;total:number}>();
+  return <details><summary>Điều chỉnh ngày, loại phòng hoặc số lượng</summary>
+    {draft?<Form submit="Xác nhận điều chỉnh" action={async()=>{
+      if(!window.confirm('Áp dụng thay đổi và phân bổ lại phòng cho đơn này?'))throw new Error('CANCELLED');
+      await rpc('amend_booking',{...draft.values,p_expected_total:draft.total});setDraft(undefined);reload();
+    }}><p>Tổng mới {money(draft.total)}</p><button type="button" className="secondary-button" onClick={()=>setDraft(undefined)}>Quay lại</button></Form>:
+      <Form submit="Kiểm tra lại tồn phòng và giá" action={async data=>{
+        const values={p_booking:booking.id,p_type:field(data,'room'),p_arrival:field(data,'start'),p_departure:field(data,'end'),
+          p_guests:Number(field(data,'guests')),p_rooms:Number(field(data,'quantity')),p_plan:field(data,'plan')};
+        const quote=await rpc('amendment_quote',values);
+        setDraft({values,total:Number(quote.total)});
+      }}>
+        <label>Nhận phòng<input type="date" name="start" min={today()} defaultValue={string(booking,'check_in')} required/></label>
+        <label>Trả phòng<input type="date" name="end" defaultValue={string(booking,'check_out')} required/></label>
+        <label>Loại phòng<select name="room" required defaultValue={string(item,'room_type_id')}>{types.map(type=><option key={string(type,'slug')} value={string(type,'slug')}>{string(type,'name_vi')}</option>)}</select></label>
+        <label>Số khách<input type="number" min="1" name="guests" required defaultValue={string(booking,'guest_count')}/></label>
+        <label>Số phòng<input type="number" min="1" max="97" name="quantity" required defaultValue={string(booking,'room_count')}/></label>
+        <label>Gói<select name="plan" defaultValue={string(item,'rate_plan')}><option value="room_only">Không ăn sáng</option><option value="with_breakfast">Có ăn sáng</option></select></label>
+      </Form>}
+  </details>;
 }
 
 export function CalendarAdmin(){
