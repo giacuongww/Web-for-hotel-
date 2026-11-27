@@ -221,3 +221,74 @@ address{font-style:normal;line-height:1.6}
 .booking-fieldset{border:0;padding:0;margin:0;min-inline-size:0}
 .nightly-rates{margin-block:12px;padding-inline-start:24px}
 .review-entry{border-bottom:1px solid var(--line);padding:16px 0}
+
+/* Hoa Phủ editorial public pages */
+.site-header .wrap{width:min(1460px,calc(100% - 64px))}
+.site-header nav{gap:clamp(9px,1.15vw,19px);font-size:13px}
+.site-header-overlay{background:#242424b0;color:#fff}
+.site-header-overlay nav a[aria-current="page"],.site-header-overlay .languages button{color:#fff}
+.site-header-overlay .menu-toggle,.site-header-overlay .site-search-button{color:#fff}
+.header-inner .brand{font:500 clamp(19px,2vw,28px)/1.1 var(--heading);letter-spacing:-.04em}
+.site-header-overlay .brand small{color:#ffd1c5}
+.navigation-group{position:relative;white-space:nowrap}
+.navigation-group button,.site-search-button{background:none;border:0;color:inherit;cursor:pointer;font:inherit;padding:5px 7px}
+.site-search-button{font-size:13px;white-space:nowrap;min-height:40px}
+.navigation-group ul{position:absolute;z-index:3;left:0;top:100%;list-style:none;background:#fff;color:var(--ink);margin:0;padding:12px;border:1px solid var(--line);min-width:210px}
+.navigation-group li a{display:block;padding:8px}
+.hero{align-items:end;min-height:94svh}
+.hero::after{background:linear-gradient(0deg,#160d09e6 0%,#160d0980 30%,#160d0920 65%,transparent 93%)}
+.hero-copy{max-width:min(765px,100%);color:white}
+.hero-inner{padding-block:150px 10svh}
+.hero p{color:white}
+.hero .eyebrow{color:#ffd1c5}
+.hero h1{font-size:clamp(43px,6vw,92px)}
+.hero h1 span{display:inline}
+.hero-secondary{background:transparent;color:white;border-color:#fff}
+.about-inner{padding-block:clamp(70px,10vw,150px)}
+.destination{display:grid;grid-template-columns:1.25fr 1fr;align-items:center;gap:clamp(28px,7vw,94px)}
+.destination img{aspect-ratio:4/3}
+.destination address{margin-top:18px}
+.home-rooms .cards{grid-template-columns:repeat(3,minmax(0,1fr))}
+.home-rooms .cards img{aspect-ratio:4/5}
+.home-rooms .cards article:nth-child(2){margin-top:50px}
+.hotel-gallery .actions [aria-pressed="true"],.editorial-stories+.actions [aria-pressed="true"]{background:var(--deep-red);color:white}
+.editorial-gallery{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:24px}
+.editorial-gallery .gallery-main:nth-child(5n+1){grid-column:span 2}
+.editorial-gallery img{aspect-ratio:5/3}
+.editorial-gallery span{display:block;text-align:left;padding:9px 12px;color:var(--ink);font:500 14px "Be Vietnam Pro",sans-serif}
+.hotel-gallery.compact .editorial-gallery{display:block}
+.hotel-gallery.compact .editorial-gallery img{aspect-ratio:21/9}
+.discovery-dialog{border:1px solid var(--line);background:#fff;color:var(--ink);width:min(860px,calc(100% - 28px));padding:18px;max-height:90svh;overflow:auto}
+.discovery-dialog::backdrop{background:#242424bf}
+.discovery-dialog img{margin-top:12px;max-height:66svh;object-fit:contain}
+.search-dialog{width:min(570px,calc(100% - 28px))}
+.search-dialog h2{font-size:24px}
+.search-dialog label,.article-page label{display:grid;gap:8px;margin:20px 0}
+.search-dialog input,.article-page input{font:inherit;padding:10px;border:1px solid var(--line);width:100%;max-width:460px}
+.article-page p{white-space:pre-wrap;margin-block:16px}
+.booking-intro{background:var(--cream);padding:clamp(28px,7vw,88px);display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:18px}
+.booking-intro+.booking{margin-top:0;margin-bottom:50px}
+@media(max-width:1250px){
+  .site-header .header-inner{flex-wrap:wrap}
+  .site-header nav{display:none;order:1;width:100%;border-top:1px solid var(--line);padding:10px 0 0}
+  .site-header nav.menu-open{display:flex;flex-wrap:wrap}
+  .site-header .header-actions .menu-toggle{display:inline-flex}
+  .header-actions{margin-left:auto}
+}
+@media(max-width:760px){
+  .site-header .wrap{width:calc(100% - 32px)}
+  .hero{min-height:clamp(560px,88svh,760px)}
+  .hero-inner{padding-block:130px 10svh}
+  .hero-image{object-position:51% center}
+  .destination,.home-rooms .cards{grid-template-columns:1fr}
+  .home-rooms .cards article:nth-child(2){margin-top:0}
+  .home-rooms .cards img{aspect-ratio:4/3}
+  .editorial-gallery{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .hotel-gallery.compact .editorial-gallery img{aspect-ratio:4/3}
+}
+@media(max-width:480px){.header-actions>.button{display:none}.hero h1{font-size:clamp(38px,10vw,52px)}}
+.address-map{grid-column:1/-1;width:100%;height:clamp(230px,44vw,420px);border:1px solid var(--line)}
+.floating-contact{position:fixed;z-index:2;right:20px;bottom:20px}
+.floating-contact .actions{gap:6px;flex-direction:column;align-items:stretch}
+.floating-contact .actions :is(.button,.secondary-button){font-size:12px;padding:8px 12px;min-height:39px}
+@media(max-width:1050px){.floating-contact{position:static;padding:0 18px 24px}.floating-contact .actions{flex-direction:row}}

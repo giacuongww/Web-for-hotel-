@@ -2,7 +2,8 @@ import { useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useLanguage } from './i18n';
 import { meals, money, roomPhoto, type Room } from './rooms';
-import { backend, quoteStay, submitBooking, type Quote, type Receipt } from './backend';
+import { backend, type Quote } from './backend';
+import { bookingProvider } from './booking-provider';
 import { usePublicData } from './public-data';
 import { nextDay, nights, readStay, stayIssue, stayQuery, today, type Stay } from './stay';
 
@@ -43,7 +44,7 @@ export function StaySearch({ params }: { params?: URLSearchParams }) {
     event.preventDefault();
     const issue = stayIssue(stay);
     setError(issue);
-    if (!issue) navigate('/phong-nghi' + stayQuery(stay));
+    if (!issue) navigate('/rooms' + stayQuery(stay));
   }
 
   return <section id="tim-phong" className="booking wrap" aria-label={t('Tìm phòng', '查找客房')}>
@@ -64,7 +65,8 @@ type Guest = { name: string; phone: string; email: string; note: string };
 
 export function Reservation({ initialRoom }: { initialRoom: Room }) {
   const [params] = useSearchParams();
-  const {rooms,hotel} = usePublicData();
+  const {rooms} = usePublicData();
+  const navigate=useNavigate();
   const [stay, change] = useState(() => readStay(params));
   const [room, setRoom] = useState(initialRoom);
   const [guest, setGuest] = useState<Guest>({ name: '', phone: '', email: '', note: '' });
@@ -73,7 +75,6 @@ export function Reservation({ initialRoom }: { initialRoom: Room }) {
   const [code, setCode] = useState('');
   const [copy, setCopy] = useState('');
   const [quote,setQuote] = useState<Quote>();
-  const [receipt,setReceipt] = useState<Receipt>();
   const [busy,setBusy] = useState(false);
   const [token,setToken] = useState(() => crypto.randomUUID());
   const [serverError,setServerError] = useState('');
@@ -82,7 +83,7 @@ export function Reservation({ initialRoom }: { initialRoom: Room }) {
   const issue = stayIssue(stay, room);
   const total = backend ? quote?.total : room.rates[stay.meal] * nights(stay) * Number(stay.quantity);
   const name = t(room.name, room.zh);
-  const demo = backend ? t('Đây là yêu cầu đặt phòng, khách sạn sẽ xác nhận sau.','这是预订申请，酒店稍后确认。') : t('Đây là đặt phòng mô phỏng. Đơn chưa được gửi tới khách sạn, chưa xác nhận phòng trống và chưa thanh toán.',
+  const demo = backend ? t('Giá dự kiến. Nhân viên sẽ kiểm tra tình trạng phòng trên ezCloud và liên hệ xác nhận.','此为预估价格，酒店将核实房态后联系您确认。') : t('Đây là đặt phòng mô phỏng. Đơn chưa được gửi tới khách sạn, chưa xác nhận phòng trống và chưa thanh toán.',
     '此为模拟预订，订单未提交给酒店，未确认空房，也未付款。');
 
   async function review(event: FormEvent<HTMLFormElement>) {
@@ -96,11 +97,11 @@ export function Reservation({ initialRoom }: { initialRoom: Room }) {
     else {
       setError('');
       setServerError('');
-      if (backend) {
+      if (bookingProvider) {
         setBusy(true);
         try {
-          const selected = (await quoteStay(stay)).find(item=>item.room_type_id===room.id);
-          if (!selected || selected.available<Number(stay.quantity)) {
+          const selected = (await bookingProvider.quote(stay)).find(item=>item.room_type_id===room.id);
+          if (!selected) {
             setServerError('SOLD_OUT');
             return;
           }
@@ -114,14 +115,12 @@ export function Reservation({ initialRoom }: { initialRoom: Room }) {
 
   async function confirm() {
     if (stage !== 'review' || issue || code || busy) return;
-    if (backend && quote) {
+    if (bookingProvider && quote) {
       setBusy(true);
       setServerError('');
       try {
-        const result = await submitBooking(token,room.id,stay,guest,quote.total);
-        setReceipt(result);
-        setCode(result.code);
-        setStage('done');
+        const result = await bookingProvider.send(token,room.id,stay,guest,quote.total);
+        navigate('/booking/confirmation',{state:{code:result.code,total:result.total,stay,roomId:room.id}});
       } catch (error) {
         const message = (error as {message?:string}).message ?? '';
         setServerError(['SOLD_OUT','PRICE_CHANGED','BOOKING_DISABLED','RATE_LIMIT'].includes(message) ? message : 'NETWORK');
@@ -162,7 +161,7 @@ export function Reservation({ initialRoom }: { initialRoom: Room }) {
   })[serverError];
 
   return <section className="section wrap detail">
-    <Link className="text-link" to={'/phong-nghi/' + room.id + stayQuery(stay)}>← {t('Chi tiết phòng', '客房详情')}</Link>
+    <Link className="text-link" to={'/rooms/' + room.id + stayQuery(stay)}>← {t('Chi tiết phòng', '客房详情')}</Link>
     <h1>{stage === 'review' ? t('Kiểm tra đơn', '核对订单') : stage === 'done' ?
       (backend ? t('Đã gửi yêu cầu đặt phòng','预订申请已提交') : t('Đã xác nhận đặt phòng mô phỏng', '模拟预订已确认')) : (backend ? t('Đặt phòng','预订') : t('Đặt phòng mô phỏng', '模拟预订'))}</h1>
     <p className="page-copy">{demo}</p>
@@ -170,7 +169,7 @@ export function Reservation({ initialRoom }: { initialRoom: Room }) {
     <div className="detail-grid">
       <div>
         {stage === 'edit' ? <form className="reservation" noValidate onSubmit={review} onChange={() => {setError('');setQuote(undefined);setServerError('');}}>
-          <fieldset disabled={busy || Boolean(backend && !hotel.online)} className="booking-fieldset">
+          <fieldset disabled={busy} className="booking-fieldset">
           <label>{t('Loại phòng', '房型')}<select value={room.id} onChange={(event) => {
             const selected = rooms.find((item) => item.id === event.target.value);
             if (selected) setRoom(selected);
@@ -192,7 +191,7 @@ export function Reservation({ initialRoom }: { initialRoom: Room }) {
           {error && <p role="alert" className="form-error">{errorMessage}</p>}
           <button className="button">{busy ? t('Đang kiểm tra…','正在查询…') : t('Kiểm tra đơn', '核对订单')}</button>
           </fieldset>
-          {backend && !hotel.online && <p>{t('Đặt phòng trực tuyến chưa mở.','在线预订尚未开放。')} <a href={'tel:'+hotel.phone}>{hotel.phone}</a></p>}
+
         </form> : <div className="reservation">
           <h2>{t('Thông tin khách hàng', '客人信息')}</h2>
           <dl className="rates">{contactFields.map(([field, vi, zh]) => <div key={field}>
@@ -205,9 +204,6 @@ export function Reservation({ initialRoom }: { initialRoom: Room }) {
             <button className="button" onClick={confirm} disabled={busy || Boolean(serverError && serverError!=='NETWORK')}>{t('Xác nhận đặt phòng', '确认预订')}</button>
           </div> : <>
             <p>{t('Mã đặt phòng', '预订编号')} <strong>{code}</strong></p>
-            {receipt && <p>{t('Chờ khách sạn xác nhận','等待酒店确认')} · <a href={'tel:'+hotel.phone}>{hotel.phone}</a><br />
-              <Link className="text-link" to={'/tra-cuu#'+token}>{t('Lưu liên kết tra cứu riêng','保存私人查询链接')}</Link>
-            </p>}
             <div className="actions">
               <button className="secondary-button" onClick={copyCode}>{t('Sao chép mã', '复制编号')}</button>
               <Link className="button" to="/">{t('Về trang chủ', '返回首页')}</Link>
