@@ -35,10 +35,10 @@ export function RoomCards({ items, stay, quotes }: { items: Room[]; stay?: Stay;
         {t(room.descriptionVi ?? '',room.descriptionZh ?? '') && <p>{t(room.descriptionVi ?? '',room.descriptionZh ?? '')}</p>}
         <p>{t('Từ', '起价')} <strong>{money(rate)}</strong> / {t('phòng / đêm', '间 / 晚')}</p>
         <div className="actions">
-          <Link className="text-link" to={'/phong-nghi/' + room.id + query} aria-label={t('Xem chi tiết', '查看详情') + ' ' + name}>
+          <Link className="text-link" to={'/rooms/' + room.id + query} aria-label={t('Xem chi tiết', '查看详情') + ' ' + name}>
             {t('Xem chi tiết', '查看详情')} ↗
           </Link>
-          <Link className="button" to={'/dat-phong/' + room.id + query} aria-label={t('Đặt phòng', '预订') + ' ' + name}>{t('Đặt phòng', '预订')}</Link>
+          <Link className="button" to={'/booking/' + room.id + query} aria-label={t('Đặt phòng', '预订') + ' ' + name}>{t('Đặt phòng', '预订')}</Link>
         </div>
       </div>
     </article>;
@@ -76,7 +76,7 @@ export function Catalog() {
   }
   const matches = rooms.filter((room) => {
     const rate = selectedPrice(room);
-    return (!requested || (availability.key===quoteKey && (availability.quotes?.find(q=>q.room_type_id===room.id)?.available ?? 0)>=Number(stay.quantity))) && (!type || room.id === type) && (!capacity || room.capacity >= Number(capacity)) &&
+    return (!requested || (availability.key===quoteKey && availability.quotes?.some(q=>q.room_type_id===room.id))) && (!type || room.id === type) && (!capacity || room.capacity >= Number(capacity)) &&
       (!params.has('guests') || Number(stay.guests) / Number(stay.quantity) <= room.capacity) &&
       (room.name.toLowerCase().includes(search) || room.zh.includes(search)) &&
       rate >= bounds[0] && rate <= bounds[1];
@@ -113,7 +113,7 @@ export function Catalog() {
         }}>{t('Xóa bộ lọc', '清除筛选')}</button>
       </div>
       {params.has('arrival') && <p className="result-count">{stay.arrival} → {stay.departure} · {nights(stay)} {t('đêm', '晚')} · {stay.guests} {t('khách', '位客人')} · {stay.quantity} {t('phòng', '间')}</p>}
-      <p className="result-count" role="status">{status==='loading' || (requested && quoteKey!==availability.key) ? t('Đang kiểm tra phòng…','正在查询客房…') :
+      <p className="result-count" role="status">{status==='loading' || (requested && quoteKey!==availability.key) ? t('Đang tải giá dự kiến…','正在加载预估房价…') :
         status==='error' || (requested && !availability.quotes) ? t('Không thể tải dữ liệu phòng. Vui lòng thử lại.','无法加载客房信息，请重试。') : matches.length ? t(matches.length + ' loại phòng phù hợp', matches.length + ' 种符合条件的房型') :
         t('Không có loại phòng phù hợp. Thử đổi số khách, số phòng hoặc bộ lọc.', '没有符合条件的房型，请调整人数、房间数量或筛选条件。')}</p>
       <RoomCards items={matches} stay={{ ...stay, meal }} quotes={quotes} />
@@ -126,6 +126,7 @@ function Gallery({ room }: { room: Room }) {
   const [index, setIndex] = useState(0);
   const [open, setOpen] = useState(false);
   const dialog = useRef<HTMLDialogElement>(null);
+  const touchStart=useRef<number|null>(null);
   const name = t(room.name, room.zh);
   const {images} = usePublicData();
   const originals = fallbackRooms.find(item=>item.id===room.id)?.image;
@@ -164,7 +165,9 @@ function Gallery({ room }: { room: Room }) {
     }}>
       {open && <>
         <button className="secondary-button icon-button close-gallery" onClick={() => setOpen(false)} aria-label={t('Đóng', '关闭')}><X size={20} /></button>
-        <img src={photos[index].url} alt={photos[index].alt + ' · ' + (index + 1)} />
+        <img src={photos[index].url} alt={photos[index].alt + ' · ' + (index + 1)}
+          onTouchStart={event=>{touchStart.current=event.touches[0].clientX;}}
+          onTouchEnd={event=>{if(touchStart.current===null)return;const delta=event.changedTouches[0].clientX-touchStart.current;touchStart.current=null;if(Math.abs(delta)>40)move(delta<0?1:-1);}} />
         <div className="gallery-controls">{controls}</div>
       </>}
     </dialog>
@@ -177,7 +180,7 @@ export function RoomDetail({ room }: { room: Room }) {
   const stay = readStay(params);
   const { t } = useLanguage();
   return <section className="section wrap detail">
-    <Link className="text-link" to={'/phong-nghi' + (params.size ? '?' + params : '')}>← {t('Danh sách phòng', '客房列表')}</Link>
+    <Link className="text-link" to={'/rooms' + (params.size ? '?' + params : '')}>← {t('Danh sách phòng', '客房列表')}</Link>
     <h1>{t(room.name, room.zh)}</h1>
     <div className="detail-grid">
       <Gallery key={room.id} room={room} />
@@ -187,7 +190,7 @@ export function RoomDetail({ room }: { room: Room }) {
         <p>{t('Nhận phòng', '入住时间')} {hotel.checkIn} · {t('Trả phòng', '退房时间')} {hotel.checkOut}</p>
         <h2>{t('Giá mỗi phòng mỗi đêm', '每间每晚房价')}</h2>
         <dl className="rates">{meals.map(([vi, zh], index) => <div key={vi}><dt>{t(vi, zh)}</dt><dd>{money(room.rates[index])}</dd></div>)}</dl>
-        <Link className="button" to={'/dat-phong/' + room.id + stayQuery(stay)}>{t('Đặt phòng ngay', '立即预订')} ↗</Link>
+        <Link className="button" to={'/booking/' + room.id + stayQuery(stay)}>{t('Đặt phòng ngay', '立即预订')} ↗</Link>
       </div>
     </div>
     <div className="related"><h2>{t('Khám phá các phòng khác', '探索其他客房')}</h2>

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile, readdir } from 'node:fs/promises';
 import { PGlite } from '@electric-sql/pglite';
 
-async function initialize(db) {
+async function initialize(db, website=false) {
   await db.exec(`create role anon; create role authenticated; create schema auth;
       create table auth.users(id uuid primary key);
       create function auth.uid() returns uuid language sql stable as
@@ -16,7 +16,7 @@ async function initialize(db) {
       grant usage on schema storage to authenticated,anon;
       grant select,insert,delete on storage.objects to authenticated;`);
     const root = new URL('../supabase/migrations/', import.meta.url);
-    for (const file of (await readdir(root)).sort()) await db.exec(await readFile(new URL(file,root),'utf8'));
+    for (const file of (await readdir(root)).sort().filter(file=>website||file<'202611270008')) await db.exec(await readFile(new URL(file,root),'utf8'));
 }
 
 test('PostgreSQL migrations and booking invariants', async () => {
@@ -148,4 +148,25 @@ test('Authorization, CMS publication, verified stay review and payment reporting
     assert.equal(overview.configured,2);
     assert.equal(overview.dirty,1);
   } finally { await db.close(); }
+});
+
+test('Website request collects no inventory and requires PMS reference before staff confirmation',async()=>{
+  const db=new PGlite();
+  try{
+    await initialize(db,true);
+    await db.exec('set role anon');
+    const sql=`select public.submit_booking_request('00000000-0000-0000-0000-000000000501','standard-double',public.hotel_today(),
+      public.hotel_today()+2,2,1,'with_breakfast','Fixture','fixture@example.com','0900000000','',$1) result`;
+    await assert.rejects(db.query(sql,[1]),/PRICE_CHANGED/);
+    const first=(await db.query(sql,[1460000])).rows[0].result;
+    assert.equal(first.status,'pending');
+    assert.equal((await db.query(sql,[1460000])).rows[0].result.code,first.code);
+    await assert.rejects(db.query('select * from public.booking_requests'),/permission denied/);
+    await db.query("select public.submit_contact_request('Fixture','fixture@example.com','0900000000','Test')");
+    await db.exec('reset role');
+    assert.equal((await db.query('select count(*)::int n from public.room_allocations')).rows[0].n,0);
+    assert.equal((await db.query('select count(*)::int n from public.contact_requests')).rows[0].n,1);
+    await assert.rejects(db.query("update public.booking_requests set status='confirmed'"),/check constraint/);
+    await db.query("update public.booking_requests set status='confirmed',pms_reference='FIXTURE-PMS'");
+  }finally{await db.close();}
 });

@@ -2,20 +2,18 @@ import {useEffect,useState,type ReactNode} from 'react';
 import {Link,NavLink,Navigate,Route,Routes,useLocation,useNavigate} from 'react-router-dom';
 import type {Session} from '@supabase/supabase-js';
 import {backend} from './backend';
-import {database,downloadCsv,field,Form,Grid,rpc,string,useRows,type Row} from './admin-data';
-import {RatesAdmin,RoomsAdmin,TypesAdmin} from './admin-rooms';
-import {BookingsAdmin,CalendarAdmin,CustomersAdmin,bookingStatus} from './admin-operations';
+import {database,field,Form,Grid,string,useRows} from './admin-data';
+import {RatesAdmin,TypesAdmin} from './admin-rooms';
+import {Intake,WebsiteAnalytics,WebsiteCustomers} from './admin-intake';
 import {ContentAdmin,MediaAdmin,ReviewsAdmin,SettingsAdmin} from './admin-content';
-import {money} from './rooms';
-import {today} from './stay';
 import './admin.css';
 
 const links=[
-  ['dashboard','Tổng quan',''],['calendar','Lịch đặt phòng','bookings'],['bookings','Đơn đặt phòng','bookings'],
-  ['rooms','Quản lý phòng','room-read'],['room-types','Loại phòng','rooms'],['rates','Bảng giá','rates'],
-  ['customers','Khách hàng','customers'],['analytics','Doanh thu','finance'],['reviews','Đánh giá','reviews'],
+  ['dashboard','Tổng quan',''],['bookings','Yêu cầu đặt phòng','bookings'],['contacts','Yêu cầu liên hệ','bookings'],
+  ['room-types','Loại phòng','rooms'],['rates','Bảng giá','rates'],
+  ['customers','Khách hàng','customers'],['analytics','Thống kê website','bookings'],['reviews','Đánh giá','reviews'],
   ['content','Nội dung website','content'],['media','Thư viện ảnh','content'],['staff','Nhân viên và phân quyền','staff'],
-  ['settings','Cài đặt','content'],['audit','Lịch sử thao tác','audit'],
+  ['settings','Cài đặt','content'],['integrations','Tích hợp ezCloud','staff'],['audit','Lịch sử thao tác','audit'],
 ];
 
 function Gate({children,allow}:{children:ReactNode;allow:boolean}) {
@@ -56,82 +54,8 @@ function Authentication({session,recovery}:{session:Session|null;recovery:boolea
   </main>;
 }
 
-function useReport(name:string,args:Row={}){
-  const [state,setState]=useState<{value?:Row;error:boolean}>({error:false});
-  const serialized=JSON.stringify(args);
-  useEffect(()=>{
-    let alive=true;
-    void rpc(name,JSON.parse(serialized)).then(value=>{if(alive)setState({value,error:false});}).catch(()=>{if(alive)setState({error:true});});
-    return()=>{alive=false;};
-  },[name,serialized]);
-  return state;
-}
-
 function Dashboard({operations}:{operations:boolean}){
-  return <><h1>Tổng quan</h1><p>Quy mô Hoa Phủ Hotel · 97 phòng</p>{operations&&<InventoryOverview/>}</>;
-}
-
-function InventoryOverview(){
-  const report=useReport('hotel_overview');
-  const stats=[['configured','Đã khai báo'],['sellable','Đang hoạt động'],['available','Có thể bán hôm nay'],['occupied','Đang lưu trú'],
-    ['dirty','Chờ dọn'],['maintenance','Bảo trì'],['pending','Chờ xác nhận'],['check_in','Khách nhận phòng hôm nay'],['check_out','Khách trả phòng hôm nay'],
-    ['cash_today','Thực thu ròng hôm nay'],['cash_month','Thực thu ròng tháng này']];
-  const value=report.value;
-  return !value?<p role="status">{report.error?'Không tải được tổng quan.':'Đang tải tổng quan…'}</p>:<>
-    <dl className="admin-metrics">{stats.filter(([key])=>Object.hasOwn(value,key)).map(([key,label])=><div key={key}><dt>{label}</dt><dd>{key.startsWith('cash')?money(Number(value[key])):string(value,key)}</dd></div>)}</dl>
-    <h2>Đơn gần đây</h2><Grid headers={['Mã','Nhận phòng','Trả phòng','Trạng thái']} rows={(value.recent as Row[]).map(row=>[string(row,'booking_code'),string(row,'check_in'),string(row,'check_out'),bookingStatus[string(row,'status')]])}/>
-  </>;
-}
-
-function Analytics(){
-  const now=today();
-  const [period,setPeriod]=useState({start:now.slice(0,7)+'-01',end:now});
-  const [custom,setCustom]=useState(false);
-  function preset(value:string){
-    setCustom(value==='custom');
-    const date=new Date(now+'T00:00:00Z');date.setUTCDate(date.getUTCDate()-Number(value));
-    const start=value==='year'?now.slice(0,4)+'-01-01':value==='month'?now.slice(0,7)+'-01':value==='custom'?period.start:date.toISOString().slice(0,10);
-    if(value!=='custom')setPeriod({start,end:now});
-  }
-  return <><h1>Doanh thu</h1><label>Khoảng thời gian<select defaultValue="month" onChange={e=>preset(e.target.value)}>
-    <option value="0">Hôm nay</option><option value="6">7 ngày gần nhất</option><option value="29">30 ngày gần nhất</option>
-    <option value="month">Tháng này</option><option value="year">Năm nay</option><option value="custom">Tùy chọn</option>
-  </select></label>
-  {custom&&<Form submit="Áp dụng" action={async data=>setPeriod({start:field(data,'start'),end:field(data,'end')})}>
-    <label>Từ ngày<input type="date" name="start" defaultValue={period.start} required/></label><label>Đến ngày<input type="date" name="end" defaultValue={period.end} required/></label>
-  </Form>}
-  <Revenue key={period.start+period.end} {...period}/></>;
-}
-
-function Revenue({start,end}:{start:string;end:string}){
-  const {value,error}=useReport('revenue_report',{p_start:start,p_end:end});
-  if(!value)return <p role="status">{error?'Không tải được báo cáo. Khoảng báo cáo tối đa 367 ngày.':'Đang tải báo cáo…'}</p>;
-  const days=value.daily as Row[];
-  const sum=(key:string)=>days.reduce((total,row)=>total+Number(row[key]),0);
-  const sold=sum('sold'),sellable=sum('sellable'),used=sum('used'),roomRevenue=sum('room_revenue');
-  const values=[
-    ['Giá trị đơn dự kiến',money(Number(value.booking_value))],['Doanh thu theo đêm phòng',money(roomRevenue)],
-    ['Tiền thực thu ròng',money(sum('receipts')-sum('refunds'))],['Hoàn trả',money(sum('refunds'))],
-    ['Còn phải thu của các đơn tạo trong kỳ',money(Number(value.outstanding))],['Số đơn',string(value,'bookings')],
-    ['Đơn xác nhận hoặc hoàn tất',string(value,'confirmed')],['Đơn hủy',string(value,'cancelled')],
-    ['Đêm phòng đã bán',String(sold)],['Lấp đầy',sellable?(100*used/sellable).toFixed(1)+'%':'—'],
-    ['ADR',sold?money(Math.round(roomRevenue/sold)):'—'],['RevPAR',sellable?money(Math.round(roomRevenue/sellable)):'—'],
-  ];
-  const max=Math.max(1,...days.map(day=>Number(day.room_revenue)));
-  return <><p>{start} → {end} · Công suất tính theo phòng đang hoạt động và lịch khóa theo ngày.</p>
-    <dl className="admin-metrics">{values.map(([label,v])=><div key={label}><dt>{label}</dt><dd>{v}</dd></div>)}</dl>
-    <button className="secondary-button" onClick={()=>downloadCsv('hoa-phu-doanh-thu.csv',[
-      ['Ngày','Đêm bán','Đêm sử dụng','Đêm có thể bán','Doanh thu phòng','Thực thu gộp','Hoàn tiền'],
-      ...days.map(d=>[d.day,d.sold,d.used,d.sellable,d.room_revenue,d.receipts,d.refunds]),
-    ])}>Xuất CSV</button>
-    <h2>Doanh thu phòng theo ngày</h2>
-    {roomRevenue>0?<div className="admin-bars">{days.filter(d=>Number(d.room_revenue)>0).map(d=><div key={string(d,'day')}>
-      <span>{string(d,'day')}</span><meter value={Number(d.room_revenue)} max={max}>{money(Number(d.room_revenue))}</meter><strong>{money(Number(d.room_revenue))}</strong>
-    </div>)}</div>:<p>Chưa có doanh thu phòng trong kỳ.</p>}
-    <Grid headers={['Ngày','Đêm bán','Doanh thu phòng','Thu gộp','Hoàn tiền']} rows={days.map(d=>[
-      string(d,'day'),string(d,'sold'),money(Number(d.room_revenue)),money(Number(d.receipts)),money(Number(d.refunds)),
-    ])}/>
-  </>;
+  return operations?<WebsiteAnalytics/>:<><h1>Tổng quan website</h1><p>Quy mô Hoa Phủ Hotel · 97 phòng</p></>;
 }
 
 function Staff(){
@@ -197,9 +121,9 @@ export default function Admin(){
   const can=(permission:string)=>!permission||access.value!.permissions.includes(permission)||
     (permission==='room-read'&&['rooms','bookings'].some(value=>access.value!.permissions.includes(value)));
   const pages:Record<string,ReactNode>={
-    dashboard:<Dashboard operations={can('room-read')||can('staff')}/>, calendar:<CalendarAdmin/>,bookings:<BookingsAdmin finance={can('finance')}/>,
-    rooms:<RoomsAdmin canEdit={can('rooms')}/>, 'room-types':<TypesAdmin/>,rates:<RatesAdmin/>,customers:<CustomersAdmin/>,
-    analytics:<Analytics/>,reviews:<ReviewsAdmin/>,content:<ContentAdmin/>,media:<MediaAdmin/>,staff:<Staff/>,settings:<SettingsAdmin staff={can('staff')}/>,audit:<Audit/>,
+    dashboard:<Dashboard operations={can('bookings')}/>, bookings:<Intake/>,contacts:<Intake contact/>,
+    'room-types':<TypesAdmin/>,rates:<RatesAdmin/>,customers:<WebsiteCustomers/>,
+    analytics:<WebsiteAnalytics/>,reviews:<ReviewsAdmin/>,content:<ContentAdmin/>,media:<MediaAdmin/>,staff:<Staff/>,settings:<SettingsAdmin staff={false}/>,integrations:<><h1>Tích hợp ezCloud</h1><p>Chế độ hiện hành: tiếp nhận yêu cầu. ezBe và ezCloud API chưa được cấu hình.</p></>,audit:<Audit/>,
   };
   return <div className="admin-frame"><aside className={'admin-sidebar'+(menu?' open':'')}><Link className="brand" to="/">Hoa Phủ <small>HOTEL</small></Link>
     <button className="secondary-button admin-menu" aria-expanded={menu} onClick={()=>setMenu(!menu)}>Menu quản trị</button>

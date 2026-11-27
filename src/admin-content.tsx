@@ -9,11 +9,14 @@ export function ContentAdmin(){
   const sections=useRows('cms_sections');
   const media=useRows('media');
   const [slug,setSlug]=useState('home');
+  const [articleSlug,setArticleSlug]=useState('');
   const [editing,setEditing]=useState<Row>();
   const page=pages.rows.find(row=>row.slug===slug)??{};
   return <><h1>Nội dung website</h1><label>Trang<select value={slug} onChange={e=>{setSlug(e.target.value);setEditing(undefined);}}>
-    <option value="home">Trang chủ</option><option value="gioi-thieu">Giới thiệu</option><option value="tien-ich">Dịch vụ</option><option value="phong-nghi">Danh sách phòng</option><option value="lien-he">Liên hệ</option>
+    <option value="home">Trang chủ</option><option value="gioi-thieu">Giới thiệu</option><option value="tien-ich">Dịch vụ</option><option value="phong-nghi">Danh sách phòng</option><option value="lien-he">Liên hệ</option><option value="location">Vị trí</option>{pages.rows.filter(row=>string(row,'slug').startsWith('news-')).map(row=><option value={string(row,'slug')} key={string(row,'slug')}>{string(row,'title_vi')}</option>)}
   </select></label>
+    <div className="admin-filters"><label>Mã bài viết mới<input value={articleSlug} onChange={e=>setArticleSlug(e.target.value)}/></label>
+      <button className="secondary-button" disabled={!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(articleSlug)} onClick={()=>setSlug('news-'+articleSlug)}>Soạn bài mới</button></div>
     {pages.state==='ready'&&<Form key={slug} action={async data=>{
       const row={slug,cover_media_id:Number(field(data,'cover'))||null,...Object.fromEntries(textFields.map(([key])=>[key,field(data,key)])),publication_status:field(data,'status'),updated_at:new Date().toISOString()};
       const {error}=await database().from('cms_pages').upsert(row);if(error)throw error;pages.reload();

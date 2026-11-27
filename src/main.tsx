@@ -11,18 +11,21 @@ import '@fontsource/noto-serif/500.css';
 import '@fontsource/noto-serif-sc/500.css';
 import './style.css';
 import { LanguageProvider, useLanguage } from './i18n';
-import { amenities, photo } from './rooms';
+import { amenities, money, photo } from './rooms';
 import { PublicDataProvider, usePublicData } from './public-data';
 import { backend } from './backend';
+import { HotelGallery, Location, News, SiteSearch } from './discovery';
 import { Reviews, LookupBooking } from './public-reviews';
 const Admin = lazy(() => import('./admin'));
 import { Catalog, RoomCards, RoomDetail } from './catalog';
 import { Reservation, StaySearch } from './reservation';
+import { nights, type Stay } from './stay';
 
 const featuredIds = ['king-with-windows','suite-balcony-city-view','luxury-family'];
 const links = [
-  ['/', 'Trang chủ', '首页'], ['/phong-nghi', 'Phòng nghỉ', '客房'],
-  ['/gioi-thieu', 'Giới thiệu', '酒店介绍'], ['/tien-ich', 'Dịch vụ', '酒店服务'], ['/lien-he', 'Liên hệ', '联系我们'],
+  ['/', 'Trang chủ', '首页'], ['/about', 'Giới thiệu', '酒店介绍'], ['/location', 'Vị trí', '位置'],
+  ['/rooms', 'Phòng nghỉ', '客房'], ['/services', 'Tiện ích', '酒店服务'], ['/gallery', 'Thư viện', '相册'],
+  ['/news', 'Tin tức', '新闻'], ['/contact', 'Liên hệ', '联系我们'],
 ] as const;
 const services = [
   ['restaurant', 'Nhà hàng', '餐厅', 'Không gian dùng bữa tại khách sạn.', '酒店内的用餐空间。'],
@@ -44,17 +47,18 @@ function StayTimes() {
 
 function BookingLink() {
   const { t } = useLanguage();
-  const location = useLocation();
-  return <Link className="button" to={location.pathname === '/' ? '/#tim-phong' : '/phong-nghi#tim-phong'}>{t('Đặt phòng ngay', '立即预订')} ↗</Link>;
+  return <Link className="button" to="/booking">{t('Yêu cầu đặt phòng', '预订申请')} ↗</Link>;
 }
 
 function Header() {
   const { t, language, change } = useLanguage();
   const [menu, setMenu] = useState(false);
+  const [roomMenu,setRoomMenu]=useState(false);
+  const {rooms}=usePublicData();
   const location = useLocation();
   const onHome = location.pathname === '/';
   const [scrolled, setScrolled] = useState(() => window.scrollY > 24);
-  useEffect(() => setMenu(false), [location]);
+  useEffect(() => {setMenu(false);setRoomMenu(false);}, [location]);
   useEffect(() => {
     const update = () => setScrolled(window.scrollY > 24);
     update();
@@ -63,6 +67,7 @@ function Header() {
   }, []);
   const overlay = onHome && !scrolled && !menu;
   return <header className={'site-header' + (onHome ? ' site-header-home' : '') + (overlay ? ' site-header-overlay' : '')} onKeyDown={(event) => {
+    if(roomMenu && event.key==='Escape'){setRoomMenu(false);document.getElementById('room-menu-toggle')?.focus();return;}
     if (menu && event.key === 'Escape') {
       setMenu(false);
       document.getElementById('menu-toggle')?.focus();
@@ -71,9 +76,14 @@ function Header() {
     <div className="wrap header-inner">
       <Brand />
       <nav id="main-navigation" className={menu ? 'menu-open' : ''} aria-label={t('Điều hướng chính', '主导航')}>
-        {links.map(([to, vi, zh]) => <NavLink end={to === '/'} key={to} to={to} onClick={() => setMenu(false)}>{t(vi, zh)}</NavLink>)}
+        {links.map(([to, vi, zh]) => to==='/rooms' ? <div key={to} className="navigation-group">
+          <NavLink to={to}>{t(vi,zh)}</NavLink><button type="button" id="room-menu-toggle" aria-expanded={roomMenu} aria-controls="room-navigation"
+            aria-label={t('Các loại phòng','查看房型')} onClick={()=>setRoomMenu(!roomMenu)}>⌄</button>
+          {roomMenu&&<ul id="room-navigation">{rooms.map(room=><li key={room.id}><Link to={'/rooms/'+room.id}>{t(room.name,room.zh)}</Link></li>)}</ul>}
+        </div> : <NavLink end={to === '/'} key={to} to={to} onClick={() => setMenu(false)}>{t(vi, zh)}</NavLink>)}
       </nav>
       <div className="header-actions">
+        <SiteSearch />
         <div className="languages" role="group" aria-label={t('Ngôn ngữ', '语言')}>
           <button aria-pressed={language === 'vi'} onClick={() => change('vi')} lang="vi">VI</button>
           <button aria-pressed={language === 'zh-CN'} onClick={() => change('zh-CN')} lang="zh-CN">中文</button>
@@ -138,9 +148,14 @@ function About({ standalone = false }: { standalone?: boolean }) {
 
 function Services({ standalone = false }: { standalone?: boolean }) {
   const { t } = useLanguage();
+  const {hash}=useLocation();
+  const [service,setService]=useState(0);
+  const linked=services.findIndex(([id])=>'#'+id===hash);
+  useEffect(()=>{if(linked>=0)setService(linked);},[linked]);
   return <section className={standalone ? "wrap section" : "wrap section home-services"} id="tien-ich">
     {standalone ? <h1>{t('Dịch vụ & tiện ích', '酒店服务与设施')}</h1> : <h2>{t('Dịch vụ & tiện ích', '酒店服务与设施')}</h2>}
-    <div className={standalone ? "cards" : "editorial-stories"}>{services.map(([image, vi, zh, description, translated]) => <article key={image}>
+    {standalone&&<div className="actions">{services.map(([id,vi,zh],i)=><button className="secondary-button" aria-pressed={service===i} onClick={()=>setService(i)} key={id}>{t(vi,zh)}</button>)}</div>}
+    <div className="editorial-stories">{(standalone?[services[service]]:services.slice(0,2)).map(([image, vi, zh, description, translated]) => <article key={image} id={image}>
       <img src={photo(image)} alt={t(vi, zh)} loading="lazy" width="720" height="480" />
       <div className="card-copy"><h3>{t(vi, zh)}</h3><p>{t(description, translated)}</p>
         <Link className="text-link" to={standalone ? '/lien-he' : '/tien-ich'}>
@@ -175,14 +190,26 @@ function Contact() {
   const { t } = useLanguage();
   const [draft, setDraft] = useState('');
   const [error, setError] = useState('');
-  function compose(event: FormEvent<HTMLFormElement>) {
+  const [sent,setSent]=useState(false);
+  const [busy,setBusy]=useState(false);
+  async function compose(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     const name = String(data.get('name') ?? '').trim();
     const email = String(data.get('email') ?? '').trim();
+    const phone = String(data.get('phone') ?? '').trim();
     const message = String(data.get('message') ?? '').trim();
-    if (!name || !message || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    if (!name || !message || !/^[+\d ().-]+$/.test(phone) || !/^\d{8,15}$/.test(phone.replace(/\D/g,'')) || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       setError('invalid');
+      return;
+    }
+    if(backend){
+      if(busy||sent)return;
+      setBusy(true);setError('');
+      try {
+        const {error}=await backend.rpc('submit_contact_request',{p_name:name,p_email:email,p_phone:phone,p_message:message});
+        if(error)setError('server');else setSent(true);
+      } catch {setError('server');} finally {setBusy(false);}
       return;
     }
     const subject = t('Liên hệ Hoa Phủ Hotel', '联系华府酒店');
@@ -195,14 +222,16 @@ function Contact() {
     <div className="detail-grid">
       <div><ContactInfo /></div>
       <form className="reservation contact-form" onSubmit={compose} noValidate onChange={() => { setDraft(''); setError(''); }}>
-        <h2>{t('Soạn email cho khách sạn', '撰写邮件给酒店')}</h2>
-        <p>{t('Mở bản nháp trong ứng dụng email để kiểm tra và tự gửi.', '请在邮件应用中打开草稿，核对后自行发送。')}</p>
+        <h2>{backend?t('Gửi yêu cầu liên hệ','发送咨询'):t('Soạn email cho khách sạn','撰写邮件给酒店')}</h2>
+        <p>{!backend&&t('Mở bản nháp trong ứng dụng email để kiểm tra và tự gửi.', '请在邮件应用中打开草稿，核对后自行发送。')}</p>
         <label>{t('Họ và tên', '姓名')}<input name="name" autoComplete="name" required maxLength={100} /></label>
+        <label>{t('Điện thoại','电话')}<input name="phone" type="tel" required maxLength={35}/></label>
         <label>{t('Email', '电子邮箱')}<input name="email" type="email" autoComplete="email" required maxLength={160} /></label>
         <label>{t('Nội dung', '消息内容')}<textarea name="message" required rows={4} maxLength={1000} /></label>
-        {error && <p role="alert" className="form-error">{t('Nhập tên, email hợp lệ và nội dung.', '请输入姓名、有效的电子邮箱和消息内容。')}</p>}
+        {error && <p role="alert" className="form-error">{error==='server'?t('Chưa thể lưu yêu cầu. Vui lòng thử lại.','暂时无法保存，请重试。'):t('Nhập tên, điện thoại, email hợp lệ và nội dung.','请输入姓名、有效的电话、邮箱和消息内容。')}</p>}
         {draft ? <a className="button" href={draft}>{t('Mở bản nháp email', '打开邮件草稿')}</a> :
-          <button className="button">{t('Tạo bản nháp email', '创建邮件草稿')}</button>}
+          <button disabled={busy||sent} className="button">{backend?t('Gửi yêu cầu','发送咨询'):t('Tạo bản nháp email', '创建邮件草稿')}</button>}
+      {sent&&<p role="status">{t('Đã tiếp nhận yêu cầu liên hệ.','已收到您的咨询。')}</p>}
       </form>
     </div>
   </section>;
@@ -224,15 +253,17 @@ function Home() {
         <div className="actions"><BookingLink /><Link className="hero-secondary" to="/#phong-nghi">{t('Khám phá phòng nghỉ', '探索客房')} ↓</Link></div>
       </div></div>
     </section>
-    <StaySearch />
+    <About /><Location compact /><Services />
     <section className="wrap section home-rooms editorial-reveal" id="phong-nghi">
       <span className="eyebrow">{t('Lưu trú', '住宿')}</span>
         <h2>{t('Phòng nghỉ nổi bật', '精选客房')}</h2>
         <RoomCards items={featuredIds.flatMap(id=>rooms.filter(room=>room.id===id))} />
       <Link className="text-link all-rooms" to="/phong-nghi">{t('Xem tất cả 7 loại phòng', '查看全部 7 种房型')} ↗</Link>
     </section>
-    <About /><Services />
+    <HotelGallery compact /><News compact />
     {backend && <Reviews />}
+    <section className="wrap section booking-intro"><h2>{t('Lên kế hoạch lưu trú','安排您的住宿')}</h2><BookingLink /></section>
+    <StaySearch />
     <section className="wrap section home-contact editorial-reveal">
       <h2>{t('Liên hệ khách sạn', '联系酒店')}</h2><Address /><QuickContact />
     </section>
@@ -250,10 +281,28 @@ function RoomPage({ booking = false }: { booking?: boolean }) {
   const {rooms,status} = usePublicData();
   const {t} = useLanguage();
   const { id } = useParams();
-  const room = rooms.find((item) => item.id === id);
+  const room = id ? rooms.find((item) => item.id === id) : booking ? rooms[0] : undefined;
   if (status!=='ready') return <section className="wrap section"><p role="status">{status==='loading' ? t('Đang tải phòng…','正在加载…') : t('Không thể tải dữ liệu phòng.','无法加载客房。')}</p></section>;
   if (!room) return <Missing />;
   return booking ? <Reservation key={room.id} initialRoom={room} /> : <RoomDetail key={room.id} room={room} />;
+}
+
+function RequestConfirmation(){
+  const {t}=useLanguage();const {hotel,rooms}=usePublicData();
+  const [copied,setCopied]=useState('');
+  const state=useLocation().state as {code:string;total:number;stay:Stay;roomId:string}|null;
+  const room=rooms.find(item=>item.id===state?.roomId);
+  return <section className="wrap section detail">
+    <h1>{state?t('Đã tiếp nhận yêu cầu','已收到预订申请'):t('Yêu cầu đặt phòng','预订申请')}</h1>
+    {state&&<><p>{t('Nhân viên Hoa Phủ sẽ kiểm tra tình trạng phòng và liên hệ xác nhận.',
+      '华府酒店工作人员将核实房态并联系您确认。')}</p><p>{t('Chờ xác nhận','等待确认')} · <strong>{state.code}</strong></p>
+      {room&&<p>{t(room.name,room.zh)} · {state.stay.meal?t('Có ăn sáng','含早餐'):t('Không ăn sáng','不含早餐')}</p>}
+      {state.stay&&<p>{state.stay.arrival} → {state.stay.departure} · {nights(state.stay)} {t('đêm','晚')} · {state.stay.guests} {t('khách','位')} · {state.stay.quantity} {t('phòng','间')}</p>}
+      <p>{t('Tổng dự kiến','预估总价')} · {money(state.total)}</p><a href={'tel:'+hotel.phone}>{hotel.phone}</a>
+      <div className="actions"><button className="secondary-button" onClick={async()=>{try{await navigator.clipboard.writeText(state.code);setCopied('ok');}catch{setCopied('failed');}}}>{t('Sao chép mã','复制编号')}</button></div>
+      <p role="status">{copied==='ok'?t('Đã sao chép.','已复制。'):copied==='failed'?t('Vui lòng sao chép mã phía trên.','请手动复制上方编号。'):''}</p></>}
+    <div className="actions"><Link className="button" to={state?'/':'/booking'}>{state?t('Về trang chủ','返回首页'):t('Mở form đặt phòng','打开预订表单')}</Link></div>
+  </section>;
 }
 
 function App() {
@@ -263,9 +312,10 @@ function App() {
   const room = rooms.find((item) => location.pathname.split('/')[2] === item.id);
   const link = links.find(([path]) => path === location.pathname);
   const brand = t('Hoa Phủ Hotel', '华府酒店');
-  const cms = pages.find(p=>p.slug===(location.pathname==='/'?'home':location.pathname.slice(1)));
+  const cmsSlugs:Record<string,string>={'/':'home','/about':'gioi-thieu','/services':'tien-ich','/rooms':'phong-nghi','/contact':'lien-he'};
+  const cms = pages.find(p=>p.slug===(cmsSlugs[location.pathname]??location.pathname.slice(1).replace('news/','news-')));
   const title = room ? [location.pathname.startsWith('/dat-phong') ? t('Đặt phòng mô phỏng', '模拟预订') : '', t(room.name, room.zh)].filter(Boolean).join(' · ') :
-    link ? t(link[1], link[2]) : t('Không tìm thấy trang', '找不到此页面');
+    cms ? t(cms.title_vi,cms.title_zh) : link ? t(link[1], link[2]) : location.pathname.startsWith('/booking') ? t('Yêu cầu đặt phòng','预订申请') : t('Không tìm thấy trang', '找不到此页面');
   const description = room
     ? t(t(room.name, room.zh) + ' tại Hoa Phủ Hotel. Xem ảnh, tiện nghi và giá theo gói ăn sáng.', '查看华府酒店' + room.zh + '的照片、设施及含早餐与不含早餐房价。')
     : t(title + ' · Khám phá khách sạn Hoa Phủ, 7 loại phòng và dịch vụ tại TP. Hồ Chí Minh。',
@@ -277,18 +327,42 @@ function App() {
     document.querySelector('meta[property="og:description"]')?.setAttribute('content', cms && t(cms.seo_description_vi,cms.seo_description_zh) || description);
   }, [title, brand, description, cms, t]);
 
+  useEffect(()=>{
+    if(!backend||location.pathname.startsWith('/admin'))return;
+    const channel=location.pathname.startsWith('/rooms/')?'room_view':location.pathname.startsWith('/news/')?'article_view':null;
+    void backend.rpc('count_website_event',{p_event:'page_view'}).then(()=>{});
+    if(channel)void backend.rpc('count_website_event',{p_event:channel}).then(()=>{});
+  },[location.pathname]);
+
   useEffect(() => {
     if (location.hash) document.getElementById(location.hash.slice(1))?.scrollIntoView();
     else window.scrollTo(0, 0);
   }, [location]);
 
   if (location.pathname.startsWith('/admin') || new URLSearchParams(window.location.search).has('admin-recovery')) return <Suspense fallback={<p>Đang tải quản trị…</p>}><Admin /></Suspense>;
-  return <><Header /><main>
+  return <div onClick={event=>{
+    const anchor=(event.target as HTMLElement).closest('a');
+    const href=anchor?.getAttribute('href')??'';
+    const channel=href.startsWith('tel:')?'phone':href.startsWith('https://zalo.me/')?'zalo':href.startsWith('https://www.google.com/maps/dir/')?'directions':null;
+    if(channel&&backend)void backend.rpc('count_website_event',{p_event:channel}).then(()=>{});
+  }}><Header /><main>
     <Routes>
       <Route path="/" element={<Home />} />
+      <Route path="/rooms" element={<Catalog />} />
       <Route path="/phong-nghi" element={<Catalog />} />
+      <Route path="/rooms/:id" element={<RoomPage />} />
       <Route path="/phong-nghi/:id" element={<RoomPage />} />
+      <Route path="/booking" element={<RoomPage booking />} />
+      <Route path="/booking/:id" element={<RoomPage booking />} />
+      <Route path="/booking/confirmation" element={<RequestConfirmation />} />
       <Route path="/dat-phong/:id" element={<RoomPage booking />} />
+      <Route path="/about" element={<About standalone />} />
+      <Route path="/location" element={<Location />} />
+      <Route path="/services" element={<Services standalone />} />
+      <Route path="/gallery" element={<HotelGallery />} />
+      <Route path="/news" element={<News />} />
+      <Route path="/news/:slug" element={<News />} />
+      <Route path="/contact" element={<Contact />} />
       <Route path="/gioi-thieu" element={<About standalone />} />
       <Route path="/tien-ich" element={<Services standalone />} />
       <Route path="/lien-he" element={<Contact />} />
@@ -298,7 +372,11 @@ function App() {
     {cms && sections.filter(item=>item.page_slug===cms.slug).map(item=><section key={item.slug} className="wrap section">
       <h2>{t(item.title_vi,item.title_zh)}</h2><p>{t(item.content_vi,item.content_zh)}</p>
     </section>)}
-  </main><Footer /></>;
+  </main><aside className="floating-contact" aria-label={t('Liên hệ nhanh','快速联系')}><QuickContact /></aside><Footer /></div>;
+}
+
+if (!window.location.hash && /^\/(about|location|rooms|services|gallery|news|contact|booking|admin)(\/|$)/.test(window.location.pathname)) {
+  history.replaceState(null,'','/'+window.location.search+'#'+window.location.pathname);
 }
 
 const oldAnchors = ['#tim-phong', '#phong-nghi', '#gioi-thieu', '#tien-ich'];
