@@ -20,3 +20,7 @@ Biểu mẫu tìm phòng chạy thử trên trình duyệt. Bản V1 chưa kết
 - Bản hiện tại có 43 ảnh phòng và 6 ảnh mặt tiền/sảnh/dịch vụ, thêm một kích thước riêng cho ảnh hero trên mobile. Ảnh được xuất lại từ các thư mục ảnh thật, chưa thể đối chiếu với ZIP WebP đã tuyển chọn. Logo gốc và favicon theo logo đang chờ file nguồn.
 - Dùng `git diff --name-status df236f0..HEAD` để xem danh sách tệp thay đổi so với bản trang chủ đầu tiên.
 - [Báo cáo kiểm thử](QA.md)
+
+## V2 full-stack
+
+Xem [cấu hình Supabase, vận hành và giới hạn](V2.md). V2 giữ bản Luxury Editorial và mặc định không nhận đơn thật khi chưa cấu hình môi trường.
