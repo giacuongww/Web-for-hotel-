@@ -2,9 +2,11 @@ import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, BedDouble, UsersRound, X, ZoomIn } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useLanguage } from './i18n';
-import { amenities, hotel, meals, money, photo, rooms, type Room } from './rooms';
+import { amenities, meals, money, photo, rooms as fallbackRooms, type Room } from './rooms';
 import { StaySearch } from './reservation';
 import { nights, readStay, stayQuery, type Stay } from './stay';
+import { backend, quoteStay, type Quote } from './backend';
+import { usePublicData } from './public-data';
 
 function Amenities() {
   const { t } = useLanguage();
@@ -19,16 +21,19 @@ function Facts({ room }: { room: Room }) {
   </p>;
 }
 
-export function RoomCards({ items, stay }: { items: Room[]; stay?: Stay }) {
+export function RoomCards({ items, stay, quotes }: { items: Room[]; stay?: Stay; quotes?: Quote[] }) {
   const { t } = useLanguage();
   return <div className="cards">{items.map((room) => {
     const name = t(room.name, room.zh);
     const query = stay ? stayQuery(stay) : '';
+    const nightly = quotes?.find(quote=>quote.room_type_id===room.id)?.nightly;
+    const rate = nightly?.length ? Math.min(...nightly) : room.rates[stay?.meal ?? 0];
     return <article key={room.id}>
       <img src={photo(room.image)} alt={name} loading="lazy" width="720" height="480" />
       <div className="card-copy">
         <h3>{name}</h3><Facts room={room} /><Amenities />
-        <p>{t('Từ', '起价')} <strong>{money(room.rates[stay?.meal ?? 0])}</strong> / {t('phòng / đêm', '间 / 晚')}</p>
+        {t(room.descriptionVi ?? '',room.descriptionZh ?? '') && <p>{t(room.descriptionVi ?? '',room.descriptionZh ?? '')}</p>}
+        <p>{t('Từ', '起价')} <strong>{money(rate)}</strong> / {t('phòng / đêm', '间 / 晚')}</p>
         <div className="actions">
           <Link className="text-link" to={'/phong-nghi/' + room.id + query} aria-label={t('Xem chi tiết', '查看详情') + ' ' + name}>
             {t('Xem chi tiết', '查看详情')} ↗
@@ -50,16 +55,33 @@ export function Catalog() {
   const [meal, setMeal] = useState(stay.meal);
   const [range, setRange] = useState('');
   const [sort, setSort] = useState('');
+  const {rooms,status} = usePublicData();
+  const [availability,setAvailability] = useState<{key:string; quotes:Quote[] | null}>({key:'',quotes:null});
+  const requested = Boolean(backend && params.has('arrival'));
+  const quoteKey = requested ? stayQuery({...stay,meal}) : '';
+  useEffect(() => {
+    if (!quoteKey) return;
+    let active = true;
+    const value = readStay(new URLSearchParams(quoteKey));
+    void quoteStay(value).then(quotes => { if(active) setAvailability({key:quoteKey,quotes}); })
+      .catch(() => { if(active) setAvailability({key:quoteKey,quotes:null}); });
+    return () => { active=false; };
+  },[quoteKey]);
   const bounds = range ? range.split('-').map(Number) : [0, Infinity];
   const search = query.trim().toLowerCase();
+  const quotes = requested && availability.key===quoteKey ? availability.quotes ?? undefined : undefined;
+  function selectedPrice(room:Room) {
+    const nightly = quotes?.find(quote=>quote.room_type_id===room.id)?.nightly;
+    return nightly?.length ? Math.min(...nightly) : room.rates[meal];
+  }
   const matches = rooms.filter((room) => {
-    const rate = room.rates[meal];
-    return (!type || room.id === type) && (!capacity || room.capacity >= Number(capacity)) &&
+    const rate = selectedPrice(room);
+    return (!requested || (availability.key===quoteKey && (availability.quotes?.find(q=>q.room_type_id===room.id)?.available ?? 0)>=Number(stay.quantity))) && (!type || room.id === type) && (!capacity || room.capacity >= Number(capacity)) &&
       (!params.has('guests') || Number(stay.guests) / Number(stay.quantity) <= room.capacity) &&
       (room.name.toLowerCase().includes(search) || room.zh.includes(search)) &&
       rate >= bounds[0] && rate <= bounds[1];
   });
-  if (sort) matches.sort((a, b) => (a.rates[meal] - b.rates[meal]) * (sort === 'high' ? -1 : 1));
+  if (sort) matches.sort((a, b) => (selectedPrice(a) - selectedPrice(b)) * (sort === 'high' ? -1 : 1));
 
   return <>
     <div className="page-intro"><div className="wrap"><h1>{t('Phòng nghỉ', '客房')}</h1></div></div>
@@ -91,9 +113,10 @@ export function Catalog() {
         }}>{t('Xóa bộ lọc', '清除筛选')}</button>
       </div>
       {params.has('arrival') && <p className="result-count">{stay.arrival} → {stay.departure} · {nights(stay)} {t('đêm', '晚')} · {stay.guests} {t('khách', '位客人')} · {stay.quantity} {t('phòng', '间')}</p>}
-      <p className="result-count" role="status">{matches.length ? t(matches.length + ' loại phòng phù hợp', matches.length + ' 种符合条件的房型') :
+      <p className="result-count" role="status">{status==='loading' || (requested && quoteKey!==availability.key) ? t('Đang kiểm tra phòng…','正在查询客房…') :
+        status==='error' || (requested && !availability.quotes) ? t('Không thể tải dữ liệu phòng. Vui lòng thử lại.','无法加载客房信息，请重试。') : matches.length ? t(matches.length + ' loại phòng phù hợp', matches.length + ' 种符合条件的房型') :
         t('Không có loại phòng phù hợp. Thử đổi số khách, số phòng hoặc bộ lọc.', '没有符合条件的房型，请调整人数、房间数量或筛选条件。')}</p>
-      <RoomCards items={matches} stay={{ ...stay, meal }} />
+      <RoomCards items={matches} stay={{ ...stay, meal }} quotes={quotes} />
     </section>
   </>;
 }
@@ -104,7 +127,14 @@ function Gallery({ room }: { room: Room }) {
   const [open, setOpen] = useState(false);
   const dialog = useRef<HTMLDialogElement>(null);
   const name = t(room.name, room.zh);
-  const photos = [room.image, ...Array.from({ length: room.image === 'suite' ? 6 : 5 }, (_, i) => room.image + '-' + (i + 1))];
+  const {images} = usePublicData();
+  const originals = fallbackRooms.find(item=>item.id===room.id)?.image;
+  const gallery = originals ? Array.from({length:originals==='suite'?6:5},(_,i)=>({url:photo(originals+'-'+(i+1)),alt:name})) : [];
+  const managed = images.filter(item=>item.room_type_id===room.id).map(item=>({
+    url:backend?.storage.from('hotel-media').getPublicUrl(item.storage_path).data.publicUrl ?? '',
+    alt:t(item.alt_vi,item.alt_zh)||name,
+  }));
+  const photos = [{url:photo(room.image),alt:name}, ...managed, ...gallery];
   const move = (delta: number) => setIndex((current) => (current + delta + photos.length) % photos.length);
 
   useEffect(() => {
@@ -120,13 +150,13 @@ function Gallery({ room }: { room: Room }) {
 
   return <div className="gallery">
     <button className="gallery-main" onClick={() => setOpen(true)} aria-label={t('Phóng to ảnh', '放大图片')}>
-      <img src={photo(photos[index])} alt={name + ' · ' + (index + 1)} width="1050" height="700" />
+      <img src={photos[index].url} alt={photos[index].alt + ' · ' + (index + 1)} width="1050" height="700" />
       <ZoomIn aria-hidden />
     </button>
     <div className="gallery-controls">{controls}</div>
-    <div className="thumbnails">{photos.map((image, i) => <button type="button" key={image} onClick={() => setIndex(i)}
+    <div className="thumbnails">{photos.map((image, i) => <button type="button" key={image.url} onClick={() => setIndex(i)}
       aria-pressed={i === index} aria-label={t('Ảnh', '图片') + ' ' + (i + 1)}>
-      <img src={photo(image)} loading="lazy" alt="" width="105" height="70" />
+      <img src={image.url} loading="lazy" alt="" width="105" height="70" />
     </button>)}</div>
     <dialog ref={dialog} onClose={() => setOpen(false)} aria-label={name} onKeyDown={(event) => {
       if (event.key === 'ArrowLeft') move(-1);
@@ -134,7 +164,7 @@ function Gallery({ room }: { room: Room }) {
     }}>
       {open && <>
         <button className="secondary-button icon-button close-gallery" onClick={() => setOpen(false)} aria-label={t('Đóng', '关闭')}><X size={20} /></button>
-        <img src={photo(photos[index])} alt={name + ' · ' + (index + 1)} />
+        <img src={photos[index].url} alt={photos[index].alt + ' · ' + (index + 1)} />
         <div className="gallery-controls">{controls}</div>
       </>}
     </dialog>
@@ -142,6 +172,7 @@ function Gallery({ room }: { room: Room }) {
 }
 
 export function RoomDetail({ room }: { room: Room }) {
+  const {rooms,hotel} = usePublicData();
   const [params] = useSearchParams();
   const stay = readStay(params);
   const { t } = useLanguage();
@@ -152,6 +183,7 @@ export function RoomDetail({ room }: { room: Room }) {
       <Gallery key={room.id} room={room} />
       <div>
         <Facts room={room} /><Amenities />
+        {t(room.descriptionVi ?? '',room.descriptionZh ?? '') && <p>{t(room.descriptionVi ?? '',room.descriptionZh ?? '')}</p>}
         <p>{t('Nhận phòng', '入住时间')} {hotel.checkIn} · {t('Trả phòng', '退房时间')} {hotel.checkOut}</p>
         <h2>{t('Giá mỗi phòng mỗi đêm', '每间每晚房价')}</h2>
         <dl className="rates">{meals.map(([vi, zh], index) => <div key={vi}><dt>{t(vi, zh)}</dt><dd>{money(room.rates[index])}</dd></div>)}</dl>

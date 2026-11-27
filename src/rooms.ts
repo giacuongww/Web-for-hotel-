@@ -7,7 +7,7 @@ export const rooms = [
   { id: 'suite-windows-city-view', name: 'Suite Windows City View', zh: '城景带窗套房', image: 'suite-windows', rates: [1020000, 1120000], capacity: 2, beds: 1 },
   { id: 'luxury-family', name: 'Luxury Family', zh: '豪华家庭房', image: 'family', rates: [1110000, 1210000], capacity: 3, beds: 2 },
 ];
-export type Room = typeof rooms[number];
+export type Room = typeof rooms[number] & {descriptionVi?: string; descriptionZh?: string};
 
 export const meals = [['Không ăn sáng', '不含早餐'], ['Có ăn sáng', '含早餐']] as const;
 export const amenities = [['Máy sấy tóc', '吹风机'], ['Máy nước nóng', '热水供应'], ['Wi-Fi', '无线网络'], ['Bãi đỗ xe', '停车场']] as const;
